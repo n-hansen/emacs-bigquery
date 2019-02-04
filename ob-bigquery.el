@@ -1,10 +1,10 @@
 ;;; ob-bigquery.el --- org-babel functions for bigquery evaluation
 
-;; Copyright (C) your name here
+;; Copyright (C) Nick Hansen
 
-;; Author: your name here
-;; Keywords: literate programming, reproducible research
-;; Homepage: https://orgmode.org
+;; Author: Nick Hansen
+;; Keywords: literate programming, reproducible research, google bigquery
+;; Homepage: TODO
 ;; Version: 0.01
 
 ;;; License:
@@ -26,29 +26,12 @@
 
 ;;; Commentary:
 
-;; This file is not intended to ever be loaded by org-babel, rather it
-;; is a bigquery for use in adding new language support to Org-babel.
-;; Good first steps are to copy this file to a file named by the
-;; language you are adding, and then use `query-replace' to replace
-;; all strings of "template" in this file with the name of your new
-;; language.
-;;
-;; If you have questions as to any of the portions of the file defined
-;; below please look to existing language support for guidance.
-;;
-;; If you are planning on adding a language to org-babel we would ask
-;; that if possible you fill out the FSF copyright assignment form
-;; available at https://orgmode.org/request-assign-future.txt as this
-;; will make it possible to include your language support in the core
-;; of Org-mode, otherwise unassigned language support files can still
-;; be included in the contrib/ directory of the Org-mode repository.
+;; TODO
 
 ;;; Requirements:
 
-;; Use this section to list the requirements of this language.  Most
-;; languages will require that at least the language be installed on
-;; the user's system, and the Emacs major mode relevant to the
-;; language be installed as well.
+;; It is expected that you have the google cloud command line tools,
+;; and in particular the bq module, installed and configured.
 
 ;;; Code:
 (require 'ob)
@@ -74,7 +57,7 @@
     (concat
      (mapconcat ;; define any variables
       (lambda (pair)
-        ;; IF YOURE TRYING TO INJECT VARIABLES IN BIGQUERY GOD HELP YOU
+        ;; TODO set up parameter expansion
         (format "## %s=%S"
                 (car pair) (org-babel-bigquery-var-to-bigquery (cdr pair))))
       vars "\n") "\n" body "\n")))
