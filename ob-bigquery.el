@@ -225,6 +225,7 @@ This function is called by `org-babel-execute-src-block'"
                                             (pprint-schema-entity (alist-get :fields value)))))
                                        (t (pprint-field-value value)))))
       (with-current-buffer schema-buffer
+        (setq buffer-read-only nil)
         (erase-buffer)
         (org-mode)
         (condition-case nil
@@ -232,8 +233,9 @@ This function is called by `org-babel-execute-src-block'"
               (pprint-schema-entity schema-data))
           (error
            (insert "Schema Error:\n" schema-json)))
+        (setq buffer-read-only t)
         (goto-char 0)))
-    (display-buffer schema-buffer)))
+    (display-buffer schema-buffer '(nil . ((inhibit-same-window . t))))))
 
 (defun bigquery-display-table-schema-at-point ()
   (interactive)
