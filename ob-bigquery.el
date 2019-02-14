@@ -37,6 +37,7 @@
 (require 'ob)
 (require 'org-src)
 (require 'cl)
+(require 'dash)
 (require 'subr-x)
 (require 'ob-eval)
 (require 'json)
