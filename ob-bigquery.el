@@ -121,12 +121,16 @@ This function is called by `org-babel-execute-src-block'"
           (entry-value (cdr entry)))
       (cond
        ((stringp entry-value)
-        (progn (puthash entry-name
-                        (cons entry-value
-                              (gethash entry-name row))
-                        row)
-               (setq row-height (max row-height (length (gethash entry-name row))))
-               (add-to-list 'columns entry-name)))
+        ;; HACK org doesn't like table entries with actual newlines, so we use a placeholder
+        (let ((entry-value (replace-regexp-in-string (regexp-quote "\n")
+                                                     "\\\\n"
+                                                     entry-value)))
+          (puthash entry-name
+                   (cons
+                    (gethash entry-name row))
+                   row)
+          (setq row-height (max row-height (length (gethash entry-name row))))
+          (add-to-list 'columns entry-name)))
        ((vectorp entry-value)
         (->> entry-value
              (-map (lambda (v) (cons (car entry) v)))
