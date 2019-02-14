@@ -69,10 +69,11 @@ This function is called by `org-babel-execute-src-block'"
   (let* ((processed-params (org-babel-process-params params))
          (full-body (org-babel-expand-body:bigquery body params processed-params))
          ;;(result-params (alist-get :result-params params))
-         (project-id (alist-get :project-id params))
-         (destination-table (alist-get :destination-table params))
-         (max-rows (alist-get :max-rows params))
-         (legacy-sql (assq :legacy-sql params))
+         (project-id (alist-get :project-id processed-params))
+         (destination-table (alist-get :destination-table processed-params))
+         (max-rows (alist-get :max-rows processed-params))
+         (legacy-sql (assq :legacy-sql processed-params))
+         (compact (assq :compact processed-params))
          (global-flags (concat " --format=json --headless "
                                (when project-id
                                  (format "--project_id %s " project-id))))
@@ -110,9 +111,10 @@ This function is called by `org-babel-execute-src-block'"
                     ;; Compilation-mode enforces read-only, but Babel expects the buffer modifiable.
                     (setq buffer-read-only nil))))
               nil)
-          (org-babel-bigquery-json-table-to-emacs-table
-           (buffer-string)))))))
+          (org-babel-bigquery-json-table-to-emacs-table (buffer-string) compact))))))
 
+;; Helper function for org-babel-bigquery-json-table-to-emacs-table
+;; Works by mutating 'columns, 'row, 'row-height
 (defun org-babel-bigquery-process-json-table-entry (entry)
     (let ((entry-name (concat path (car entry)))
           (entry-value (cdr entry)))
@@ -134,14 +136,15 @@ This function is called by `org-babel-execute-src-block'"
                   (org-babel-bigquery-process-json-table-entry v)))
               entry-value)))))
 
-(defun org-babel-bigquery-json-table-to-emacs-table (json-str)
+(defun org-babel-bigquery-json-table-to-emacs-table (json-str &optional compact)
   (let* (columns
          (json-key-type 'string)
          (path "")
          (all-rows (->> (json-read-from-string json-str)
                         (--map (let ((row (make-hash-table :test 'equal))
                                      (row-height 0))
-                                 (-map #'org-babel-bigquery-process-json-table-entry it)
+                                 (-map #'org-babel-bigquery-process-json-table-entry it) ; map for side-effects
+                                 (when (> row-height 1) (setq compact nil))
                                  (cons row row-height)))))
          (columns (cl-sort columns 'string-lessp))
          (all-rows (--mapcat (let ((row-vals (car it))
@@ -157,9 +160,14 @@ This function is called by `org-babel-execute-src-block'"
                                                         columns)
                                                   rows))
                                  (setq row-height (1- row-height)))
-                               (cons 'hline (reverse rows)))
+                               (if compact
+                                   rows
+                                 (cons 'hline (reverse rows))))
                              all-rows)))
-    (cons columns all-rows)))
+    (cons columns
+          (if compact
+              (cons 'hline all-rows)
+            all-rows))))
 
 (defun bigquery-display-table-schema (table-identifier)
   (string-match "^\\(\\([a-zA-Z0-9_-]+\\)[.:]\\)?\\([a-zA-Z0-9_]+\\)\\.\\([a-zA-Z0-9_]+\\)$"
