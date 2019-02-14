@@ -35,87 +35,54 @@
 
 ;;; Code:
 (require 'ob)
+(require 'org-src)
 (require 'cl)
 (require 'subr-x)
-;(require 'ob-ref)
 (require 'ob-eval)
 (require 'json)
-;; possibly require modes required for your language
 
-;; optionally define a file extension for this language
 (add-to-list 'org-babel-tangle-lang-exts '("bigquery" . "sql"))
+(when org-src-lang-modes (add-to-list 'org-src-lang-modes '("bigquery" . sql)))
 
-;; optionally declare default header arguments for this language
-(defvar org-babel-default-header-args:bigquery '())
 
-;; This function expands the body of a source code block by doing
-;; things like prepending argument definitions to the body, it should
-;; be called by the `org-babel-execute:bigquery' function below.
+(defvar org-babel-default-header-args:bigquery
+  '((:max-rows . 10)))
+
+;; Expand the body of a source code by performing extremely unsafe parameter injection.
 (defun org-babel-expand-body:bigquery (body params &optional processed-params)
   "Expand BODY according to PARAMS, return the expanded body."
-  (let ((vars (nth 1 (or processed-params (org-babel-process-params params)))))
-    (concat
-     (mapconcat ;; define any variables
-      (lambda (pair)
-        ;; TODO set up parameter expansion
-        (format "## %s=%S"
-                (car pair) (org-babel-bigquery-var-to-bigquery (cdr pair))))
-      vars "\n") "\n" body "\n")))
-
-;; This is the main function which is called to evaluate a code
-;; block.
-;;
-;; This function will evaluate the body of the source code and
-;; return the results as emacs-lisp depending on the value of the
-;; :results header argument
-;; - output means that the output to STDOUT will be captured and
-;;   returned
-;; - value means that the value of the last statement in the
-;;   source code block will be returned
-;;
-;; The most common first step in this function is the expansion of the
-;; PARAMS argument using `org-babel-process-params'.
-;;
-;; Please feel free to not implement options which aren't appropriate
-;; for your language (e.g. not all languages support interactive
-;; "session" evaluation).  Also you are free to define any new header
-;; arguments which you feel may be useful -- all header arguments
-;; specified by the user will be available in the PARAMS variable.
+  (let* ((params (or processed-params (org-babel-process-params params)))
+         (prologue (alist-get :prologue params))
+         (epilogue (alist-get :epilogue params)))
+    (->> params
+         (--filter (eq :var (car it)))
+         (mapcar #'cdr)
+         (--reduce-from (replace-regexp-in-string (regexp-quote (format "@%s" (car it)))
+                                                  (format "%S" (cdr it))
+                                                  acc)
+                        (concat prologue "\n" body "\n" epilogue)))))
+;; Evaluate a SQL block by making a call to the bq cli.
 (defun org-babel-execute:bigquery (body params)
   "Execute a block of Bigquery code with org-babel.
 This function is called by `org-babel-execute-src-block'"
   (message "Executing Bigquery source code block")
-  (let* (;;; From template
-         ;(processed-params (org-babel-process-params params))
-         ;; set the session if the session variable is non-nil
-         ;(session (org-babel-bigquery-initiate-session (first processed-params)))
-         ;; variables assigned for use in the block
-         ;(vars (second processed-params))
-         ;(result-params (third processed-params))
-         ;; either OUTPUT or VALUE which should behave as described above
-         ;(result-type (fourth processed-params))
-         ;; expand the body with `org-babel-expand-body:bigquery'
-         ;(full-body (org-babel-expand-body:bigquery
-         ;            body params processed-params))
-
-         (result-params (cdr (assq :result-params params)))
-         (project-id (cdr (assq :project-id params)))
-         (destination-table (cdr (assq :destination-table params)))
-         (max-rows (or (cdr (assq :max-rows params)) 10))
-         (global-flags (let ((flags " --format json --headless "))
-                         (when project-id
-                           (setq flags
-                                 (concat flags
-                                         (format "--project_id %s " project-id))))
-                         flags))
-         (command-flags (let ((flags (format " --nouse_legacy_sql --max_rows=%s "
-                                             max-rows)))
-                          (when destination-table
-                            (setq flags
-                                  (concat flags
-                                          (format "--destination_table=%s --replace "
-                                                  destination-table))))
-                          flags))
+  (let* ((processed-params (org-babel-process-params params))
+         (full-body (org-babel-expand-body:bigquery body params processed-params))
+         ;;(result-params (alist-get :result-params params))
+         (project-id (alist-get :project-id params))
+         (destination-table (alist-get :destination-table params))
+         (max-rows (alist-get :max-rows params))
+         (legacy-sql (assq :legacy-sql params))
+         (global-flags (concat " --format=json --headless "
+                               (when project-id
+                                 (format "--project_id %s " project-id))))
+         (command-flags (concat (format " --max_rows=%s "
+                                        max-rows)
+                                (when destination-table
+                                  (format "--destination_table=%s --replace "
+                                          destination-table))
+                                (when (not legacy-sql)
+                                  "--nouse_legacy_sql ")))
          (command (concat "bq"
                           global-flags
                           "query"
@@ -126,7 +93,7 @@ This function is called by `org-babel-execute-src-block'"
     (let ((err-buff (get-buffer-create " *Org-Babel Error*")) exit-code)
       (with-current-buffer err-buff (erase-buffer))
       (with-temp-buffer
-        (insert body)
+        (insert full-body)
         (setq exit-code
               (org-babel--shell-command-on-region
                (point-min) (point-max) command err-buff))
@@ -250,19 +217,11 @@ This function is called by `org-babel-execute-src-block'"
   "Prepare SESSION according to the header arguments specified in PARAMS."
   )
 
-(defun org-babel-bigquery-var-to-bigquery (var)
-  "Convert an elisp var into a string of bigquery source code
-specifying a var of the same value."
-  (format "%S" var))
-
 (defun org-babel-bigquery-initiate-session (&optional session)
   "If there is not a current inferior-process-buffer in SESSION then create.
 Return the initialized session."
   (unless (string= session "none")
     ))
-
-(when org-src-lang-modes
-  (add-to-list 'org-src-lang-modes '("bigquery" . sql)))
 
 (provide 'ob-bigquery)
 ;;; ob-bigquery.el ends here
