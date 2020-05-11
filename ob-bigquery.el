@@ -126,8 +126,8 @@ This function is called by `org-babel-execute-src-block'"
                                                      "\\\\n"
                                                      entry-value)))
           (puthash entry-name
-                   (cons
-                    (gethash entry-name row))
+                   (cons entry-value
+                         (gethash entry-name row))
                    row)
           (setq row-height (max row-height (length (gethash entry-name row))))
           (add-to-list 'columns entry-name)))
